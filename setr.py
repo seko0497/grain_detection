@@ -13,19 +13,38 @@ import numpy as np
 
 class SETR(nn.Module):
 
-    def __init__(self):
+    def __init__(
+        self,
+            num_patches,
+            image_size,
+            num_channels,
+            embedding_size,
+            n_encoder_heads,
+            n_encoder_layers):
 
         super(SETR, self).__init__()
         self.image_seq = ImageSequentializer(
-            (16, 16),
-            (256, 256),
-            2,
-            512
+            num_patches,
+            image_size,
+            num_channels,
+            embedding_size
+        )
+
+        self.encoder_layer = nn.TransformerEncoderLayer(
+            d_model=embedding_size,
+            nhead=n_encoder_heads
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            self.encoder_layer,
+            num_layers=n_encoder_layers
         )
 
     def forward(self, x):
 
-        return self.image_seq(x)
+        x = self.image_seq(x)
+        x = self.transformer_encoder(x)
+
+        return x
 
 
 class ImageSequentializer(nn.Module):
@@ -70,6 +89,8 @@ class ImageSequentializer(nn.Module):
         embeddings = self.linear(flat_patches)
         embeddings = self.pos_embedding(embeddings)
 
+        return embeddings
+
 
 class PositionalEncoding(nn.Module):
 
@@ -97,7 +118,14 @@ class PositionalEncoding(nn.Module):
 grain_dataset = GrainDataset("data/grains", 10)
 grain_dataloader = DataLoader(grain_dataset, batch_size=1)
 
-setr = SETR()
+setr = SETR(
+    (16, 16),
+    (256, 256),
+    2,
+    512,
+    1,
+    20
+)
 
 for batch in grain_dataloader:
     intensity = batch["I"]
