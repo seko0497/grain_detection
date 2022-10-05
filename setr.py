@@ -20,9 +20,17 @@ class SETR(nn.Module):
             num_channels,
             embedding_size,
             n_encoder_heads,
-            n_encoder_layers):
+            n_encoder_layers,
+            features,
+            out_channels,
+            decoder_method="PUP"):
 
         super(SETR, self).__init__()
+
+        self.num_patches = num_patches
+        self.embedding_size = embedding_size
+        self.image_size = image_size
+
         self.image_seq = ImageSequentializer(
             num_patches,
             image_size,
@@ -39,10 +47,28 @@ class SETR(nn.Module):
             num_layers=n_encoder_layers
         )
 
+        if decoder_method == "PUP":
+            self.decoder = DecoderPUP(
+                embedding_size,
+                out_channels,
+                features
+            )
+
     def forward(self, x):
 
         x = self.image_seq(x)
         x = self.transformer_encoder(x)
+
+        hh = self.image_size[0] // self.num_patches[0]
+        ww = self.image_size[1] // self.num_patches[1]
+
+        x = einops.rearrange(
+            x,
+            "(h w) b c -> b c h w",
+            h=hh,
+            w=ww
+        )
+        x = self.decoder(x)
 
         return x
 
@@ -115,6 +141,50 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
+class DecoderPUP(nn.Module):
+
+    def __init__(self, in_channels, out_channels, features):
+
+        super().__init__()
+        self.decoder_1 = nn.Sequential(
+                    nn.Conv2d(in_channels, features[0], 3, padding=1),
+                    nn.BatchNorm2d(features[0]),
+                    nn.ReLU(inplace=True),
+                    nn.Upsample(
+                        scale_factor=2, mode="bilinear", align_corners=True)
+                )
+        self.decoder_2 = nn.Sequential(
+                    nn.Conv2d(features[0], features[1], 3, padding=1),
+                    nn.BatchNorm2d(features[1]),
+                    nn.ReLU(inplace=True),
+                    nn.Upsample(
+                        scale_factor=2, mode="bilinear", align_corners=True)
+                )
+        self.decoder_3 = nn.Sequential(
+            nn.Conv2d(features[1], features[2], 3, padding=1),
+            nn.BatchNorm2d(features[2]),
+            nn.ReLU(inplace=True),
+            nn.Upsample(
+                scale_factor=2, mode="bilinear", align_corners=True)
+        )
+        self.decoder_4 = nn.Sequential(
+            nn.Conv2d(features[2], features[3], 3, padding=1),
+            nn.BatchNorm2d(features[3]),
+            nn.ReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+        )
+
+        self.final_out = nn.Conv2d(features[-1], out_channels, 3, padding=1)
+
+    def forward(self, x):
+        x = self.decoder_1(x)
+        x = self.decoder_2(x)
+        x = self.decoder_3(x)
+        x = self.decoder_4(x)
+        x = self.final_out(x)
+        return x
+
+
 grain_dataset = GrainDataset("data/grains", 10)
 grain_dataloader = DataLoader(grain_dataset, batch_size=1)
 
@@ -124,7 +194,9 @@ setr = SETR(
     2,
     512,
     1,
-    20
+    20,
+    [512, 128, 128, 128],
+    1
 )
 
 for batch in grain_dataloader:
