@@ -1,4 +1,5 @@
 from fileinput import filename
+from re import I
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
@@ -6,6 +7,7 @@ import os
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 
 class GrainDataset(Dataset):
@@ -15,10 +17,25 @@ class GrainDataset(Dataset):
         self.root_dir = root_dir
         self.num = num
 
-        self.flip = transforms.Compose([
+        self.crop_flip = transforms.Compose([
+            transforms.RandomCrop(256),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.5)
         ])
+
+        self.images = [torch.cat((
+            transforms.ToTensor()(
+                Image.open(f"{self.root_dir}/{i}_intensity.png")
+            ),
+            transforms.ToTensor()(
+                Image.open(f"{self.root_dir}/{i}_depth.png")
+            ),
+            transforms.ToTensor()(
+                Image.open(f"{self.root_dir}/{i}_target.png")
+            )[1:]
+            ))
+            for i in range(1, 11) if i != 2
+        ]
 
     def __len__(self):
 
@@ -30,26 +47,9 @@ class GrainDataset(Dataset):
         if index + 1 == 2:  # TODO: Segment File 2
             index += 1
 
-        intensity_file = f"{index + 1}_intensity.png"
-        intensity = Image.open(f"{self.root_dir}/{intensity_file}")
-        intensity = transforms.ToTensor()(intensity)
+        images = self.crop_flip(self.images[index])
 
-        depth_file = f"{index + 1}_depth.png"
-        depth = Image.open(f"{self.root_dir}/{depth_file}")
-        depth = transforms.ToTensor()(depth)
-
-        target_file = f"{index + 1}_target.png"
-        target = Image.open(f"{self.root_dir}/{target_file}")
-        target = transforms.ToTensor()(target)[1:]
-
-        all = torch.cat((intensity, depth, target))
-        cropped = transforms.RandomCrop(
-            256
-        )(all)
-
-        images = self.flip(cropped)
-
-        return {"I": images[:2], "O": images[-1]}
+        return {"I": images[:2], "O": images[-1:]}
 
 
 # DEBUG

@@ -1,7 +1,4 @@
 import math
-from tkinter import image_names
-from turtle import forward
-from requests import patch
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -54,6 +51,8 @@ class SETR(nn.Module):
                 features
             )
 
+        self.sigmoid = nn.Sigmoid()
+
     def forward(self, x):
 
         x = self.image_seq(x)
@@ -69,6 +68,8 @@ class SETR(nn.Module):
             w=ww
         )
         x = self.decoder(x)
+
+        x = self.sigmoid(x)
 
         return x
 
@@ -183,22 +184,3 @@ class DecoderPUP(nn.Module):
         x = self.decoder_4(x)
         x = self.final_out(x)
         return x
-
-
-grain_dataset = GrainDataset("data/grains", 10)
-grain_dataloader = DataLoader(grain_dataset, batch_size=1)
-
-setr = SETR(
-    (16, 16),
-    (256, 256),
-    2,
-    512,
-    1,
-    20,
-    [512, 128, 128, 128],
-    1
-)
-
-for batch in grain_dataloader:
-    intensity = batch["I"]
-    setr(intensity)
