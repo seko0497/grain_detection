@@ -13,10 +13,10 @@ def get_config():
     num_patches = (16, 16)
     image_size = (256, 256)
     num_channels = 2
-    embedding_size = 256
+    embedding_size = 128
     n_encoder_heads = 1
-    n_encoder_layers = 20
-    decoder_features = [512, 128, 128, 128]
+    n_encoder_layers = 5
+    decoder_features = [128, 64, 64, 64]
     decoder_method = "PUP"
     out_channels = 1
 
@@ -25,8 +25,8 @@ def get_config():
     num_data = 5000
     batch_size = 16
     optimizer = "Adam"
-    loss = "BCELoss"
-    learning_rate = 0.01
+    loss = "BCEWithLogitsLoss"
+    learning_rate = 0.0001
     epochs = 100
     num_workers = 16
 

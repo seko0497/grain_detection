@@ -69,8 +69,6 @@ class SETR(nn.Module):
         )
         x = self.decoder(x)
 
-        x = self.sigmoid(x)
-
         return x
 
 
