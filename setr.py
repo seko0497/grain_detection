@@ -1,11 +1,7 @@
 import math
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-from grain_detection.dataset_grain import GrainDataset
 import einops
-import matplotlib.pyplot as plt
-import numpy as np
 
 
 class SETR(nn.Module):

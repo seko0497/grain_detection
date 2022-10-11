@@ -1,21 +1,19 @@
-from fileinput import filename
-from re import I
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from torchvision import transforms
-import os
 from PIL import Image
 import numpy as np
-import matplotlib.pyplot as plt
-import time
+import einops
 
 
 class GrainDataset(Dataset):
 
-    def __init__(self, root_dir, num):
+    def __init__(self, root_dir, num, image_idxs, train=True):
 
         self.root_dir = root_dir
         self.num = num
+        self.image_idxs = image_idxs
+        self.train = train
 
         self.crop_flip = transforms.Compose([
             transforms.RandomCrop(256),
@@ -34,22 +32,45 @@ class GrainDataset(Dataset):
                 Image.open(f"{self.root_dir}/{i}_target.png")
             )[1:]
             ))
-            for i in range(1, 11) if i != 2
+            for i in image_idxs if i != 2
         ]
 
     def __len__(self):
 
-        return self.num
+        if self.train:
+            return self.num
+        else:
+            return len(self.image_idxs)
 
     def __getitem__(self, index):
 
-        index = np.random.randint(0, 9)
-        if index + 1 == 2:  # TODO: Segment File 2
-            index += 1
+        if self.train:
 
-        images = self.crop_flip(self.images[index])
+            index = np.random.randint(0, len(self.images))
 
-        return {"I": images[:2], "O": images[-1:]}
+            images = self.crop_flip(self.images[index])
+
+            return {"I": images[:2], "O": images[-1:]}
+
+        else:
+
+            image = self.images[index]
+            image = image[
+                :,
+                :image.shape[1] // 256 * 256,
+                :image.shape[2] // 256 * 256]
+
+            p1 = image.shape[1] // 256
+            p2 = image.shape[2] // 256
+
+            inp = einops.rearrange(
+                    image[:2],
+                    "c (p1 h) (p2 w) -> (p1 p2) c h w",
+                    p1=p1,
+                    p2=p2
+                )
+
+            return {"I": inp, "O": image[-1:]}
 
 
 # DEBUG

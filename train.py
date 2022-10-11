@@ -31,7 +31,7 @@ def train(model, device, data_loader, optimizer, epoch, loss_fn):
 
         if batch_idx == 0:
 
-            wandb.log({"intensity": wandb.Image(
+            wandb.log({"Train samples": wandb.Image(
                 inp[0, 0].cpu().detach().numpy(),
                 masks={
                     "predictions": {

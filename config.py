@@ -28,7 +28,11 @@ def get_config():
     loss = "BCEWithLogitsLoss"
     learning_rate = 0.0001
     epochs = 100
-    num_workers = 16
+    num_workers = 8
+
+    # Eval config
+
+    evaluate_every = 1
 
     random_seed = 1234
 
@@ -50,7 +54,8 @@ def get_config():
         "random_seed": random_seed,
         "epochs": epochs,
         "num_workers": num_workers,
-        "learning_rate": learning_rate
+        "learning_rate": learning_rate,
+        "evaluate_every": evaluate_every
     }
 
     return config
