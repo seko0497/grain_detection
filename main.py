@@ -76,7 +76,7 @@ def main():
 
     for epoch in range(1, config["epochs"] + 1):
         train(model, device, train_loader, optimizer, epoch, loss)
-        if config["evaluate_every"] % epoch == 0:
+        if epoch % config["evaluate_every"] == 0:
             validate(model, device, validation_loader, epoch)
 
 

@@ -40,7 +40,7 @@ def train(model, device, data_loader, optimizer, epoch, loss_fn):
                     "ground_truth": {
                         "mask_data": trg[0, 0].cpu().detach().numpy()}
                 }
-            )}, step=epoch)
+            )}, step=epoch, commit=False)
 
     epoch_loss /= len(data_loader)
-    wandb.log({"train_loss": epoch_loss})
+    wandb.log({"train_loss": epoch_loss}, commit=False)

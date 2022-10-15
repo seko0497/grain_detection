@@ -1,12 +1,18 @@
 import einops
+import numpy as np
 import torch
 from tqdm import tqdm
 import wandb
+from torchmetrics.functional.classification import binary_jaccard_index
+from torchmetrics.functional import dice
 
 
 def validate(model, device, validation_loader, epoch):
 
     model.eval()
+
+    scores = {"iou": [], "dice": []}
+    log_dict = {}
 
     with torch.no_grad():
 
@@ -36,8 +42,18 @@ def validate(model, device, validation_loader, epoch):
                 p1=p1,
                 p2=p2
             )
+            prediction = torch.round(torch.sigmoid(prediction))
 
-            wandb.log({"Validation": wandb.Image(
+            scores["iou"].append(binary_jaccard_index(
+                prediction.cpu(),
+                batch["O"][0, 0].cpu()
+            ).item())
+            scores["dice"].append(dice(
+                prediction.cpu(),
+                batch["O"][0, 0].cpu().int()
+            ).item())
+
+            log_dict[f"val_image_{batch_idx}"] = wandb.Image(
                 features[0].cpu().detach().numpy(),
                 masks={
                     "predictions": {
@@ -46,4 +62,12 @@ def validate(model, device, validation_loader, epoch):
                     "ground_truth": {
                         "mask_data": batch["O"][0, 0].cpu().detach().numpy()}
                 }
-            )}, step=epoch)
+            )
+
+        log_dict["val_iou_mean"] = np.mean(scores["iou"])
+        log_dict["val_dice_mean"] = np.mean(scores["dice"])
+        for i in range(len(validation_loader)):
+            log_dict[f"val_iou_{i}"] = scores["iou"][i]
+            log_dict[f"val_dice_{i}"] = scores["dice"][i]
+
+        wandb.log(log_dict, step=epoch)
