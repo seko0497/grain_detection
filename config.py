@@ -16,7 +16,7 @@ def get_config():
     embedding_size = 128
     n_encoder_heads = 1
     n_encoder_layers = 5
-    decoder_features = [128, 64, 64, 64]
+    decoder_features = [1024, 256, 256, 256]
     decoder_method = "PUP"
     out_channels = 1
 
@@ -27,7 +27,7 @@ def get_config():
     optimizer = "Adam"
     loss = "BCEWithLogitsLoss"
     learning_rate = 0.0001
-    epochs = 100
+    epochs = 50
     num_workers = 8
 
     # Eval config
@@ -35,6 +35,7 @@ def get_config():
     evaluate_every = 1
 
     random_seed = 1234
+    use_wandb = True
 
     config = {
         "train_dataset": train_dataset,
@@ -55,7 +56,8 @@ def get_config():
         "epochs": epochs,
         "num_workers": num_workers,
         "learning_rate": learning_rate,
-        "evaluate_every": evaluate_every
+        "evaluate_every": evaluate_every,
+        "use_wandb": use_wandb
     }
 
     return config

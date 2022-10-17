@@ -13,7 +13,10 @@ def main():
 
     config = get_config()
 
-    wandb.init(config=config, entity="seko97", project="grain_detection")
+    use_wandb = config.get("use_wandb", False)
+
+    if use_wandb:
+        wandb.init(config=config, entity="seko97", project="grain_detection")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -32,14 +35,26 @@ def main():
         random_state=config.get("random_seed", 1234)
     )
 
-    train_loader = DataLoader(GrainDataset(
-        config["train_dataset"],
-        config["num_data"],
-        image_idxs=train_images,
-    ), batch_size=config.get("batch_size", 4),
-       num_workers=config.get("num_workers", 1),
-       persistent_workers=True,
-       pin_memory=True)
+    if use_wandb:
+        train_loader = DataLoader(GrainDataset(
+            config["train_dataset"],
+            config["num_data"],
+            image_idxs=train_images,
+        ), batch_size=wandb.config.batch_size,
+           num_workers=config.get("num_workers", 1),
+           persistent_workers=True,
+           pin_memory=True)
+
+    else:
+
+        train_loader = DataLoader(GrainDataset(
+            config["train_dataset"],
+            config["num_data"],
+            image_idxs=train_images,
+        ), batch_size=config.get("batch_size", 4),
+           num_workers=config.get("num_workers", 1),
+           persistent_workers=True,
+           pin_memory=True)
 
     validation_loader = DataLoader(GrainDataset(
         config["train_dataset"],
@@ -51,28 +66,59 @@ def main():
        persistent_workers=True,
        pin_memory=True)
 
-    model = SETR(
-        config["num_patches"],
-        config["image_size"],
-        config["num_channels"],
-        config["embedding_size"],
-        config["n_encoder_heads"],
-        config["n_encoder_layers"],
-        config["decoder_features"],
-        config["out_channels"],
-        config["decoder_method"]
-    )
+    if use_wandb:
+
+        model = SETR(
+            wandb.config.num_patches,
+            wandb.config.image_size,
+            wandb.config.num_channels,
+            wandb.config.embedding_size,
+            wandb.config.n_encoder_heads,
+            wandb.config.n_encoder_layers,
+            [
+                wandb.config.embedding_size,
+                wandb.config.embedding_size // 2,
+                wandb.config.embedding_size // 2,
+                wandb.config.embedding_size // 2
+            ],
+            wandb.config.out_channels,
+            wandb.config.decoder_method
+        )
+
+    else:
+
+        model = SETR(
+            config["num_patches"],
+            config["image_size"],
+            config["num_channels"],
+            config["embedding_size"],
+            config["n_encoder_heads"],
+            config["n_encoder_layers"],
+            config["decoder_features"],
+            config["out_channels"],
+            config["decoder_method"]
+        )
+
     if torch.cuda.device_count() > 1:
         model = torch.nn.parallel.DataParallel(model)
 
     model.to(device)
 
-    optimizer = getattr(torch.optim, config.get("optimizer", "Adam"))(
-        model.parameters(), lr=config["learning_rate"]
-    )
+    if use_wandb:
+
+        optimizer = getattr(torch.optim, config.get("optimizer", "Adam"))(
+            model.parameters(), lr=wandb.config.learning_rate
+        )
+
+    else:
+        optimizer = getattr(torch.optim, config.get("optimizer", "Adam"))(
+            model.parameters(), lr=config["learning_rate"]
+        )
+
     loss = getattr(torch.nn, config.get("loss", "CrossEntropyLoss"))()
 
-    wandb.watch(model, log="all")
+    if use_wandb:
+        wandb.watch(model, log="all")
 
     for epoch in range(1, config["epochs"] + 1):
         train(model, device, train_loader, optimizer, epoch, loss)
