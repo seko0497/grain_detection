@@ -25,5 +25,6 @@ parameters_dict = {
 }
 
 sweep_config["parameters"] = parameters_dict
-sweep_id = wandb.sweep(sweep_config, project="grain_detection")
-wandb.agent(sweep_id, main, count=20)
+# sweep_id = wandb.sweep(sweep_config, project="grain_detection")
+sweep_id = "lg14fq55"
+wandb.agent(sweep_id, main, count=20, project="grain_detection")

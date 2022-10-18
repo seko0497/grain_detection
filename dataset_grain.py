@@ -8,12 +8,13 @@ import einops
 
 class GrainDataset(Dataset):
 
-    def __init__(self, root_dir, num, image_idxs, train=True):
+    def __init__(self, root_dir, num, image_idxs, in_channels, train=True):
 
         self.root_dir = root_dir
         self.num = num
         self.image_idxs = image_idxs
         self.train = train
+        self.in_channel = in_channels
 
         self.crop_flip = transforms.Compose([
             transforms.RandomCrop(256),
@@ -21,16 +22,16 @@ class GrainDataset(Dataset):
             transforms.RandomVerticalFlip(p=0.5)
         ])
 
-        self.images = [torch.cat((
-            transforms.ToTensor()(
-                Image.open(f"{self.root_dir}/{i}_intensity.png")
-            ),
-            transforms.ToTensor()(
-                Image.open(f"{self.root_dir}/{i}_depth.png")
-            ),
-            transforms.ToTensor()(
-                Image.open(f"{self.root_dir}/{i}_target.png")
-            )[1:]
+        self.images = [torch.cat(
+            tuple([
+                transforms.ToTensor()(
+                    Image.open(f"{self.root_dir}/{i}_{feature}.png")
+                ) for feature in in_channels
+            ])
+            + tuple(
+                [transforms.ToTensor()(
+                    Image.open(f"{self.root_dir}/{i}_target.png")
+                )[1:]]
             ))
             for i in image_idxs if i != 2
         ]

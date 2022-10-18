@@ -12,7 +12,7 @@ def get_config():
 
     num_patches = (16, 16)
     image_size = (256, 256)
-    num_channels = 2
+    in_channels = ["intensity", "depth"]
     embedding_size = 128
     n_encoder_heads = 1
     n_encoder_layers = 5
@@ -42,7 +42,7 @@ def get_config():
         "num_data": num_data,
         "num_patches": num_patches,
         "image_size": image_size,
-        "num_channels": num_channels,
+        "in_channels": in_channels,
         "embedding_size": embedding_size,
         "n_encoder_heads": n_encoder_heads,
         "n_encoder_layers": n_encoder_layers,

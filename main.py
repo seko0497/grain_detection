@@ -36,9 +36,15 @@ def main():
     )
 
     if use_wandb:
+        wandb.config.train_images = train_images
+        wandb.config.validation_images = validation_images
+        wandb.config.test_images = test_images
+
+    if use_wandb:
         train_loader = DataLoader(GrainDataset(
             config["train_dataset"],
             config["num_data"],
+            in_channels=config["in_channels"],
             image_idxs=train_images,
         ), batch_size=wandb.config.batch_size,
            num_workers=config.get("num_workers", 1),
@@ -50,6 +56,7 @@ def main():
         train_loader = DataLoader(GrainDataset(
             config["train_dataset"],
             config["num_data"],
+            in_channels=config["in_channels"],
             image_idxs=train_images,
         ), batch_size=config.get("batch_size", 4),
            num_workers=config.get("num_workers", 1),
@@ -59,6 +66,7 @@ def main():
     validation_loader = DataLoader(GrainDataset(
         config["train_dataset"],
         config["num_data"],
+        in_channels=config["in_channels"],
         image_idxs=validation_images,
         train=False
     ), batch_size=1,
@@ -71,7 +79,7 @@ def main():
         model = SETR(
             wandb.config.num_patches,
             wandb.config.image_size,
-            wandb.config.num_channels,
+            len(wandb.config.in_channels),
             wandb.config.embedding_size,
             wandb.config.n_encoder_heads,
             wandb.config.n_encoder_layers,
@@ -90,7 +98,7 @@ def main():
         model = SETR(
             config["num_patches"],
             config["image_size"],
-            config["num_channels"],
+            len(config["in_channels"]),
             config["embedding_size"],
             config["n_encoder_heads"],
             config["n_encoder_layers"],
