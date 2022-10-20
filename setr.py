@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import einops
 import torchvision
+from collections import OrderedDict
 
 
 class SETR(nn.Module):
@@ -34,21 +35,13 @@ class SETR(nn.Module):
             embedding_size
         )
 
-        self.encoder_layer = nn.TransformerEncoderLayer(
-            d_model=embedding_size,
-            nhead=n_encoder_heads,
-            dim_feedforward=dim_mlp
+        self.transformer_encoder = Encoder(
+            n_encoder_layers,
+            embedding_size,
+            n_encoder_heads,
+            dim_mlp,
+            dropout=0.0
         )
-
-        if encoder_type == "custom":
-
-            self.transformer_encoder = nn.TransformerEncoder(
-                self.encoder_layer,
-                num_layers=n_encoder_layers
-            )
-
-        elif encoder_type == "vit_b":
-            pass
 
         if decoder_method == "PUP":
             self.decoder = DecoderPUP(
@@ -81,34 +74,68 @@ class SETR(nn.Module):
 
     def load_pretrained(self):
 
-        vit_b_16 = torchvision.models.vit_l_16(
+        vit_l_16 = torchvision.models.vit_l_16(
             weights=torchvision.models.ViT_L_16_Weights.DEFAULT)
-        for layer_idx in range(len(self.transformer_encoder.layers)):
-            with torch.no_grad():
-                getattr(
-                    self.transformer_encoder.layers, f"{layer_idx}"
-                ).self_attn.out_proj.weight.copy_(
-                        (getattr(
-                            vit_b_16.encoder.layers,
-                            f"encoder_layer_{layer_idx}")
-                         .self_attention.out_proj.weight)
-                    )
 
-                getattr(
-                    self.transformer_encoder.layers, f"{layer_idx}"
-                ).linear1.weight.copy_(
-                    getattr(
-                        vit_b_16.encoder.layers,
-                        f"encoder_layer_{layer_idx}").mlp[0].weight
-                )
+        self.transformer_encoder.load_state_dict(
+            vit_l_16.encoder.state_dict(), strict=False
+        )
 
-                getattr(
-                    self.transformer_encoder.layers, f"{layer_idx}"
-                ).linear2.weight.copy_(
-                        getattr(
-                            vit_b_16.encoder.layers,
-                            f"encoder_layer_{layer_idx}").mlp[3].weight
-                    )
+
+class Encoder(nn.Module):
+
+    def __init__(
+            self, n_encoder_layers, embedding_size, n_heads, dim_mlp, dropout):
+
+        super().__init__()
+
+        self.dropout = nn.Dropout(dropout)
+        layers = OrderedDict()
+        for i in range(n_encoder_layers):
+            layers[f"encoder_layer_{i}"] = EncoderBlock(
+                embedding_size,
+                n_heads,
+                dim_mlp,
+                dropout,
+            )
+        self.layers = nn.Sequential(layers)
+        self.ln = nn.LayerNorm(embedding_size, eps=1e-6)
+
+    def forward(self, input: torch.Tensor):
+        return self.ln(self.layers(self.dropout(input)))
+
+
+class EncoderBlock(nn.Module):
+
+    def __init__(self, embedding_size, n_heads, dim_mlp, dropout):
+
+        super().__init__()
+        self.embedding_size = embedding_size
+
+        self.ln_1 = nn.LayerNorm(embedding_size, eps=1e-6)
+        self.self_attention = nn.MultiheadAttention(
+            embedding_size, n_heads, batch_first=True)
+        self.dropout = nn.Dropout(dropout)
+
+        self.gelu = nn.GELU()
+
+        self.ln_2 = nn.LayerNorm(embedding_size, eps=1e-6)
+        self.mlp = torchvision.ops.MLP(
+            embedding_size,
+            [dim_mlp, embedding_size],
+            inplace=False
+        )
+
+    def forward(self, inp):
+
+        x = self.ln_1(inp)
+        x, _ = self.self_attention(query=x, key=x, value=x, need_weights=False)
+        x = self.dropout(x)
+        x = x + inp
+
+        y = self.ln_2(x)
+        y = self.mlp(y)
+        return x + y
 
 
 class ImageSequentializer(nn.Module):
