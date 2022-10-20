@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 import einops
+import torchvision
 
 
 class SETR(nn.Module):
@@ -14,6 +15,8 @@ class SETR(nn.Module):
             embedding_size,
             n_encoder_heads,
             n_encoder_layers,
+            dim_mlp,
+            encoder_type,
             features,
             out_channels,
             decoder_method="PUP"):
@@ -33,12 +36,19 @@ class SETR(nn.Module):
 
         self.encoder_layer = nn.TransformerEncoderLayer(
             d_model=embedding_size,
-            nhead=n_encoder_heads
+            nhead=n_encoder_heads,
+            dim_feedforward=dim_mlp
         )
-        self.transformer_encoder = nn.TransformerEncoder(
-            self.encoder_layer,
-            num_layers=n_encoder_layers
-        )
+
+        if encoder_type == "custom":
+
+            self.transformer_encoder = nn.TransformerEncoder(
+                self.encoder_layer,
+                num_layers=n_encoder_layers
+            )
+
+        elif encoder_type == "vit_b":
+            pass
 
         if decoder_method == "PUP":
             self.decoder = DecoderPUP(
@@ -48,6 +58,8 @@ class SETR(nn.Module):
             )
 
         self.sigmoid = nn.Sigmoid()
+
+        self.load_pretrained()
 
     def forward(self, x):
 
@@ -66,6 +78,37 @@ class SETR(nn.Module):
         x = self.decoder(x)
 
         return x
+
+    def load_pretrained(self):
+
+        vit_b_16 = torchvision.models.vit_l_16(
+            weights=torchvision.models.ViT_L_16_Weights.DEFAULT)
+        for layer_idx in range(len(self.transformer_encoder.layers)):
+            with torch.no_grad():
+                getattr(
+                    self.transformer_encoder.layers, f"{layer_idx}"
+                ).self_attn.out_proj.weight.copy_(
+                        (getattr(
+                            vit_b_16.encoder.layers,
+                            f"encoder_layer_{layer_idx}")
+                         .self_attention.out_proj.weight)
+                    )
+
+                getattr(
+                    self.transformer_encoder.layers, f"{layer_idx}"
+                ).linear1.weight.copy_(
+                    getattr(
+                        vit_b_16.encoder.layers,
+                        f"encoder_layer_{layer_idx}").mlp[0].weight
+                )
+
+                getattr(
+                    self.transformer_encoder.layers, f"{layer_idx}"
+                ).linear2.weight.copy_(
+                        getattr(
+                            vit_b_16.encoder.layers,
+                            f"encoder_layer_{layer_idx}").mlp[3].weight
+                    )
 
 
 class ImageSequentializer(nn.Module):

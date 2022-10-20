@@ -14,7 +14,7 @@ class GrainDataset(Dataset):
         self.num = num
         self.image_idxs = image_idxs
         self.train = train
-        self.in_channel = in_channels
+        self.in_channels = in_channels
 
         self.crop_flip = transforms.Compose([
             transforms.RandomCrop(256),
@@ -51,7 +51,7 @@ class GrainDataset(Dataset):
 
             images = self.crop_flip(self.images[index])
 
-            return {"I": images[:2], "O": images[-1:]}
+            return {"I": images[:len(self.in_channels)], "O": images[-1:]}
 
         else:
 
@@ -65,7 +65,7 @@ class GrainDataset(Dataset):
             p2 = image.shape[2] // 256
 
             inp = einops.rearrange(
-                    image[:2],
+                    image[:len(self.in_channels)],
                     "c (p1 h) (p2 w) -> (p1 p2) c h w",
                     p1=p1,
                     p2=p2

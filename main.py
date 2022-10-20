@@ -83,6 +83,8 @@ def main():
             wandb.config.embedding_size,
             wandb.config.n_encoder_heads,
             wandb.config.n_encoder_layers,
+            wandb.config.dim_mlp,
+            wandb.config.encoder_type,
             [
                 wandb.config.embedding_size,
                 wandb.config.embedding_size // 2,
@@ -102,6 +104,8 @@ def main():
             config["embedding_size"],
             config["n_encoder_heads"],
             config["n_encoder_layers"],
+            config["dim_mlp"],
+            config["encoder_type"],
             config["decoder_features"],
             config["out_channels"],
             config["decoder_method"]
@@ -129,9 +133,12 @@ def main():
         wandb.watch(model, log="all")
 
     for epoch in range(1, config["epochs"] + 1):
-        train(model, device, train_loader, optimizer, epoch, loss)
+        train(
+            model, device, train_loader, optimizer, epoch, loss,
+            use_wandb=use_wandb)
         if epoch % config["evaluate_every"] == 0:
-            validate(model, device, validation_loader, epoch)
+            validate(
+                model, device, validation_loader, epoch, use_wandb=use_wandb)
 
 
 if __name__ == '__main__':

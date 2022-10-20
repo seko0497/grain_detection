@@ -7,7 +7,7 @@ from torchmetrics.functional.classification import binary_jaccard_index
 from torchmetrics.functional import dice
 
 
-def validate(model, device, validation_loader, epoch):
+def validate(model, device, validation_loader, epoch, use_wandb=False):
 
     model.eval()
 
@@ -70,4 +70,5 @@ def validate(model, device, validation_loader, epoch):
             log_dict[f"val_iou_{i}"] = scores["iou"][i]
             log_dict[f"val_dice_{i}"] = scores["dice"][i]
 
-        wandb.log(log_dict, step=epoch)
+        if use_wandb:
+            wandb.log(log_dict, step=epoch)

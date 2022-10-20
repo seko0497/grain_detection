@@ -7,7 +7,9 @@ from tqdm import tqdm
 import torch
 
 
-def train(model, device, data_loader, optimizer, epoch, loss_fn):
+def train(
+        model, device, data_loader, optimizer,
+        epoch, loss_fn, use_wandb=False):
 
     model.train()
 
@@ -31,16 +33,18 @@ def train(model, device, data_loader, optimizer, epoch, loss_fn):
 
         if batch_idx == 0:
 
-            wandb.log({"Train samples": wandb.Image(
-                inp[0, 0].cpu().detach().numpy(),
-                masks={
-                    "predictions": {
-                        "mask_data": torch.round(torch.sigmoid(
-                            output[0, 0])).cpu().detach().numpy()},
-                    "ground_truth": {
-                        "mask_data": trg[0, 0].cpu().detach().numpy()}
-                }
-            )}, step=epoch, commit=False)
+            if use_wandb:
+
+                wandb.log({"Train samples": wandb.Image(
+                    inp[0, 0].cpu().detach().numpy(),
+                    masks={
+                        "predictions": {
+                            "mask_data": torch.round(torch.sigmoid(
+                                output[0, 0])).cpu().detach().numpy()},
+                        "ground_truth": {
+                            "mask_data": trg[0, 0].cpu().detach().numpy()}
+                    }
+                )}, step=epoch, commit=False)
 
     epoch_loss /= len(data_loader)
     wandb.log({"train_loss": epoch_loss}, commit=False)
