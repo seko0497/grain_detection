@@ -29,7 +29,7 @@ def get_config():
     optimizer = "Adam"
     loss = "BCEWithLogitsLoss"
     learning_rate = 0.00001
-    epochs = 50
+    epochs = 100
     num_workers = 8
 
     # Eval config

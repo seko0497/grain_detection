@@ -1,4 +1,5 @@
 import math
+from matplotlib.image import interpolations_names
 import torch
 import torch.nn as nn
 import einops
@@ -57,7 +58,7 @@ class SETR(nn.Module):
     def forward(self, x):
 
         x = self.image_seq(x)
-        x = self.transformer_encoder(x)
+        x, _ = self.transformer_encoder(x)
 
         hh = self.image_size[0] // self.num_patches[0]
         ww = self.image_size[1] // self.num_patches[1]
@@ -101,8 +102,16 @@ class Encoder(nn.Module):
         self.layers = nn.Sequential(layers)
         self.ln = nn.LayerNorm(embedding_size, eps=1e-6)
 
-    def forward(self, input: torch.Tensor):
-        return self.ln(self.layers(self.dropout(input)))
+    def forward(self, inp):
+
+        intermediate_outputs = []
+
+        x = self.dropout(inp)
+        for layer in self.layers:
+            x = layer(x)
+            intermediate_outputs.append(x)
+
+        return self.ln(x), intermediate_outputs
 
 
 class EncoderBlock(nn.Module):
@@ -116,8 +125,6 @@ class EncoderBlock(nn.Module):
         self.self_attention = nn.MultiheadAttention(
             embedding_size, n_heads, batch_first=True)
         self.dropout = nn.Dropout(dropout)
-
-        self.gelu = nn.GELU()
 
         self.ln_2 = nn.LayerNorm(embedding_size, eps=1e-6)
         self.mlp = torchvision.ops.MLP(
