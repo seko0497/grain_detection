@@ -13,10 +13,10 @@ def get_config():
     num_patches = (16, 16)
     image_size = (256, 256)
     in_channels = ["intensity", "depth"]
-    embedding_size = 1024
-    n_encoder_heads = 16
-    n_encoder_layers = 24
-    dim_mlp = 4096
+    embedding_size = 768
+    n_encoder_heads = 12
+    n_encoder_layers = 12
+    dim_mlp = 3072
     encoder_type = "custom"
     decoder_features = [1024, 256, 256, 256]
     decoder_method = "MLA"
@@ -30,7 +30,7 @@ def get_config():
     optimizer = "Adam"
     loss = "BCEWithLogitsLoss"
     learning_rate = 0.00001
-    epochs = 100
+    epochs = 50
     num_workers = 8
 
     # Eval config

@@ -1,22 +1,41 @@
-import math
-
-from os.path import join as pjoin
 from collections import OrderedDict
-from turtle import forward
+import einops
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
 
 
 class TransUNet(nn.Module):
 
-    def __init__(self):
+    def __init__(
+            self, embedding_size, n_encoder_heads, n_encoder_layers,
+            out_channels, dim_mlp):
 
         super().__init__()
 
-        self.embeddings = Embeddings()
-        # self.transformer_encoder = Encoder()
+        self.embeddings = Embeddings(embedding_size)
+        self.transformer_encoder = Encoder(
+            n_encoder_layers,
+            embedding_size,
+            n_encoder_heads,
+            dim_mlp,
+            dropout=0.0
+        )
+
+        self.decoder = Decoder(
+            embedding_size,
+            out_channels
+        )
+
+    def forward(self, x):
+
+        x, features = self.embeddings(x)
+        x, __ = self.transformer_encoder(x)
+        x = self.decoder(x, features)
+
+        return x
 
 
 class Embeddings(nn.Module):
@@ -32,7 +51,7 @@ class Embeddings(nn.Module):
             1)
 
         self.patch_embeddings = nn.Conv2d(
-            16, self.embedding_size, kernel_size=1, stride=1)
+            1024, self.embedding_size, kernel_size=1, stride=1)
         self.position_embeddings = nn.Parameter(
             torch.zeros(1, 256, self.embedding_size))
         self.dropout = nn.Dropout(dropout)
@@ -41,13 +60,146 @@ class Embeddings(nn.Module):
 
         x, features = self.resnet(x)
 
-        x = self.patch_embeddings
+        x = self.patch_embeddings(x)
         x = x.flatten(2)
         x = x.transpose(-1, -2)
 
         embeddings = x + self.position_embeddings
         embeddings = self.dropout(embeddings)
         return embeddings, features
+
+
+class Encoder(nn.Module):
+
+    def __init__(
+            self, n_encoder_layers, embedding_size, n_heads, dim_mlp, dropout):
+
+        super().__init__()
+
+        self.dropout = nn.Dropout(dropout)
+        layers = OrderedDict()
+        for i in range(n_encoder_layers):
+            layers[f"encoder_layer_{i}"] = EncoderBlock(
+                embedding_size,
+                n_heads,
+                dim_mlp,
+                dropout,
+            )
+        self.layers = nn.Sequential(layers)
+        self.ln = nn.LayerNorm(embedding_size, eps=1e-6)
+
+    def forward(self, inp):
+
+        intermediate_outputs = []
+
+        x = self.dropout(inp)
+        for layer in self.layers:
+            x = layer(x)
+            intermediate_outputs.append(x)
+
+        return self.ln(x), intermediate_outputs
+
+
+class EncoderBlock(nn.Module):
+
+    def __init__(self, embedding_size, n_heads, dim_mlp, dropout):
+
+        super().__init__()
+        self.embedding_size = embedding_size
+
+        self.ln_1 = nn.LayerNorm(embedding_size, eps=1e-6)
+        self.self_attention = nn.MultiheadAttention(
+            embedding_size, n_heads, batch_first=True)
+        self.dropout = nn.Dropout(dropout)
+
+        self.ln_2 = nn.LayerNorm(embedding_size, eps=1e-6)
+        self.mlp = torchvision.ops.MLP(
+            embedding_size,
+            [dim_mlp, embedding_size],
+            inplace=False
+        )
+
+    def forward(self, inp):
+
+        x = self.ln_1(inp)
+        x, _ = self.self_attention(query=x, key=x, value=x, need_weights=False)
+        x = self.dropout(x)
+        x = x + inp
+
+        y = self.ln_2(x)
+        y = self.mlp(y)
+        return x + y
+
+
+class Decoder(nn.Module):
+
+    def __init__(self, embedding_size, out_channels):
+
+        super().__init__()
+
+        self.embedding_size = embedding_size
+
+        self.root_conv = nn.Sequential(
+            nn.Conv2d(embedding_size, 512, 3, padding=1),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True))
+
+        self.upsample1 = nn.UpsamplingBilinear2d(scale_factor=2)
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(512 * 2, 256, 3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True))
+
+        self.upsample2 = nn.UpsamplingBilinear2d(scale_factor=2)
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(256 * 2, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True))
+
+        self.upsample3 = nn.UpsamplingBilinear2d(scale_factor=2)
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(64 + 128, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True))
+
+        self.upsample3_final = nn.UpsamplingBilinear2d(scale_factor=2)
+        self.conv_final = nn.Sequential(
+            nn.Conv2d(64, 16, 3, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(inplace=True))
+
+        self.cls = nn.Conv2d(16, out_channels, 3, padding=1)
+
+    def forward(self, x, features):
+
+        # x : (B x n_patches x emb_size)
+
+        x = einops.rearrange(  # (B x emb_size x 16 x 16)
+                x,
+                "b (h w) c -> b c h w",
+                h=16,
+                w=16)
+
+        x = self.root_conv(x)
+
+        x = self.upsample1(x)  # (B x 512 x 32 x 32)
+        x = torch.cat((x, features[0]), dim=1)  # (B x 1024 x 32 x 32)
+        x = self.conv1(x)  # (B x 256, 32, 32)
+
+        x = self.upsample2(x)  # (B x 256 x 64 x 64)
+        x = torch.cat((x, features[1]), dim=1)  # (B x 512 x 64 x 64)
+        x = self.conv2(x)  # (B x 128, 64, 64)
+
+        x = self.upsample3(x)  # (B x 128 x 128 x 128)
+        x = torch.cat((x, features[2]), dim=1)  # (B x 192 x 128 x 128)
+        x = self.conv3(x)  # (B x 64, 128, 128)
+
+        x = self.upsample3_final(x)  # (B x 128 x 256 x 256)
+        x = self.conv_final(x)  # (B x 16 x 256 x 256)
+
+        x = self.cls(x)  # (B x 1 x 256 x 256)
+
+        return x
 
 
 class StdConv2d(nn.Conv2d):
@@ -119,7 +271,7 @@ class ResNetV2(nn.Module):
 
         self.root = nn.Sequential(OrderedDict([
             ('conv', StdConv2d(
-                3, width, kernel_size=7, stride=2, bias=False, padding=3)),
+                2, width, kernel_size=7, stride=2, bias=False, padding=3)),
             ('gn', nn.GroupNorm(32, width, eps=1e-6)),
             ('relu', nn.ReLU(inplace=True)),
             # ('pool', nn.MaxPool2d(kernel_size=3, stride=2, padding=0))

@@ -3,6 +3,7 @@ import wandb
 from config import get_config
 from grain_detection.dataset_grain import GrainDataset
 from torch.utils.data import DataLoader
+from grain_detection.transunet import TransUNet
 from setr import SETR
 from train import train
 from validate import validate
@@ -26,7 +27,7 @@ def main():
     train_images, test_images = train_test_split(
         [i for i in range(1, 11) if i != 2],
         test_size=0.1,
-        random_state=config.get("random_seed", 1234)
+        random_state=1  # =config.get("random_seed", 1234)
     )
 
     train_images, validation_images = train_test_split(
@@ -76,41 +77,22 @@ def main():
 
     if use_wandb:
 
-        model = SETR(
-            wandb.config.num_patches,
-            wandb.config.image_size,
-            len(wandb.config.in_channels),
+        model = TransUNet(
             wandb.config.embedding_size,
             wandb.config.n_encoder_heads,
             wandb.config.n_encoder_layers,
-            wandb.config.dim_mlp,
-            wandb.config.encoder_type,
-            [
-                wandb.config.embedding_size,
-                wandb.config.embedding_size // 2,
-                wandb.config.embedding_size // 2,
-                wandb.config.embedding_size // 2
-            ],
             wandb.config.out_channels,
-            wandb.config.decoder_method,
-            wandb.config.n_mla_heads
+            wandb.config.dim_mlp
         )
 
     else:
 
-        model = SETR(
-            config["num_patches"],
-            config["image_size"],
-            len(config["in_channels"]),
+        model = TransUNet(
             config["embedding_size"],
             config["n_encoder_heads"],
             config["n_encoder_layers"],
-            config["dim_mlp"],
-            config["encoder_type"],
-            config["decoder_features"],
             config["out_channels"],
-            config["decoder_method"],
-            config["n_mla_heads"],
+            config["dim_mlp"]
         )
 
     if torch.cuda.device_count() > 1:
