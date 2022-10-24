@@ -92,7 +92,8 @@ def main():
                 wandb.config.embedding_size // 2
             ],
             wandb.config.out_channels,
-            wandb.config.decoder_method
+            wandb.config.decoder_method,
+            wandb.config.n_mla_heads
         )
 
     else:
@@ -108,7 +109,8 @@ def main():
             config["encoder_type"],
             config["decoder_features"],
             config["out_channels"],
-            config["decoder_method"]
+            config["decoder_method"],
+            config["n_mla_heads"],
         )
 
     if torch.cuda.device_count() > 1:

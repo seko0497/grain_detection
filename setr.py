@@ -1,5 +1,4 @@
 import math
-from matplotlib.image import interpolations_names
 import torch
 import torch.nn as nn
 import einops
@@ -21,13 +20,16 @@ class SETR(nn.Module):
             encoder_type,
             features,
             out_channels,
-            decoder_method="PUP"):
+            decoder_method="PUP",
+            n_mla_heads=None):
 
         super(SETR, self).__init__()
 
         self.num_patches = num_patches
         self.embedding_size = embedding_size
         self.image_size = image_size
+        self.n_encoder_layers = n_encoder_layers
+        self.decoder_method = decoder_method
 
         self.image_seq = ImageSequentializer(
             num_patches,
@@ -51,6 +53,18 @@ class SETR(nn.Module):
                 features
             )
 
+        elif decoder_method == "MLA":
+
+            self.layer_idxs = [
+                int(i * self.n_encoder_layers / n_mla_heads) - 1
+                for i in range(1, n_mla_heads + 1)]
+
+            self.decoder = DecoderMLA(
+                embedding_size,
+                out_channels,
+                n_mla_heads=n_mla_heads
+            )
+
         self.sigmoid = nn.Sigmoid()
 
         self.load_pretrained()
@@ -58,17 +72,31 @@ class SETR(nn.Module):
     def forward(self, x):
 
         x = self.image_seq(x)
-        x, _ = self.transformer_encoder(x)
+        x, intermediate = self.transformer_encoder(x)
 
         hh = self.image_size[0] // self.num_patches[0]
         ww = self.image_size[1] // self.num_patches[1]
 
-        x = einops.rearrange(
-            x,
-            "(h w) b c -> b c h w",
-            h=hh,
-            w=ww
-        )
+        if self.decoder_method == "PUP":
+
+            x = einops.rearrange(
+                x,
+                "(h w) b c -> b c h w",
+                h=hh,
+                w=ww
+            )
+
+        elif self.decoder_method == "MLA":
+
+            x = [
+                    einops.rearrange(
+                        intermediate[i],
+                        "(h w) b c -> b c h w",
+                        h=hh,
+                        w=ww
+                    ) for i in self.layer_idxs
+            ]
+
         x = self.decoder(x)
 
         return x
@@ -255,3 +283,63 @@ class DecoderPUP(nn.Module):
         x = self.decoder_4(x)
         x = self.final_out(x)
         return x
+
+
+class DecoderMLA(nn.Module):
+
+    def __init__(self, embedding_size, out_channels, n_mla_heads=4):
+
+        super().__init__()
+
+        self.conv1 = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(embedding_size, embedding_size // 2, 1),
+                nn.BatchNorm2d(embedding_size // 2),
+                nn.ReLU(inplace=True)
+            )
+            for _ in range(n_mla_heads)
+        ])
+
+        self.conv2 = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(
+                    embedding_size // 2, embedding_size // 2, 3, padding=1),
+                nn.BatchNorm2d(embedding_size // 2),
+                nn.ReLU(inplace=True)
+            )
+            for _ in range(n_mla_heads)
+        ])
+
+        self.conv3 = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(
+                    embedding_size // 2, embedding_size // 4, 3, padding=1),
+                nn.BatchNorm2d(embedding_size // 4),
+                nn.ReLU(inplace=True),
+                nn.Upsample(
+                    scale_factor=4, mode="bilinear", align_corners=True)
+            )
+            for _ in range(n_mla_heads)
+        ])
+
+        self.cls = nn.Sequential(
+            nn.Conv2d(
+                embedding_size // 4 * n_mla_heads, out_channels, 3, padding=1),
+            nn.Upsample(
+                    scale_factor=4, mode="bilinear", align_corners=True)
+        )
+
+    def forward(self, x):
+
+        aggr = self.conv1[0](x[0])
+        outs = [self.conv3[0](self.conv2[0](aggr))]
+
+        for i, encoding in enumerate(x[1:]):
+
+            out_1 = self.conv1[i + 1](encoding)
+            aggr = aggr + out_1
+            outs.append(self.conv3[i + 1](self.conv2[i + 1](aggr)))
+
+        out = torch.cat(outs, dim=1)
+        out = self.cls(out)
+        return out

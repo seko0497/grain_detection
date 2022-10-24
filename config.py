@@ -19,7 +19,8 @@ def get_config():
     dim_mlp = 4096
     encoder_type = "custom"
     decoder_features = [1024, 256, 256, 256]
-    decoder_method = "PUP"
+    decoder_method = "MLA"
+    n_mla_heads = 4
     out_channels = 1
 
     # Train config
@@ -52,6 +53,7 @@ def get_config():
         "encoder_type": encoder_type,
         "decoder_features": decoder_features,
         "decoder_method": decoder_method,
+        "n_mla_heads": n_mla_heads,
         "out_channels": out_channels,
         "batch_size": batch_size,
         "optimizer": optimizer,
