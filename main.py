@@ -75,6 +75,30 @@ def main():
        persistent_workers=True,
        pin_memory=True)
 
+    if config["encoder_type"] or wandb.encoder_type == "vit_b":
+
+        wandb.config.embedding_size = 768
+        wandb.config.n_encoder_heads = 12
+        wandb.config.n_encoder_layers = 12
+        wandb.config.dim_mlp = 3072
+
+        config["embedding_size"] = 768
+        config["n_encoder_heads"] = 12
+        config["n_encoder_layers"] = 12
+        config["dim_mlp"] = 3072
+
+    elif config["encoder_type"] or wandb.encoder_type == "vit_l":
+
+        wandb.config.embedding_size = 1024
+        wandb.config.n_encoder_heads = 16
+        wandb.config.n_encoder_layers = 24
+        wandb.config.dim_mlp = 4096
+
+        config["embedding_size"] = 1024
+        config["n_encoder_heads"] = 16
+        config["n_encoder_layers"] = 24
+        config["dim_mlp"] = 4096
+
     if use_wandb:
 
         model = TransUNet(
