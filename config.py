@@ -7,6 +7,7 @@ def get_config():
     # Data config
 
     train_dataset = "data/grains"
+    felix_data = True
 
     # Model config
 
@@ -30,8 +31,8 @@ def get_config():
     optimizer = "Adam"
     loss = "BCEWithLogitsLoss"
     learning_rate = 0.00001
-    epochs = 100
-    num_workers = 8
+    epochs = 150
+    num_workers = 32
 
     # Eval config
 
@@ -63,7 +64,8 @@ def get_config():
         "num_workers": num_workers,
         "learning_rate": learning_rate,
         "evaluate_every": evaluate_every,
-        "use_wandb": use_wandb
+        "use_wandb": use_wandb,
+        "felix_data": felix_data
     }
 
     return config

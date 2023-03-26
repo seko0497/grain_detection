@@ -1,4 +1,6 @@
+from matplotlib import pyplot as plt
 import torch
+from tqdm import tqdm
 import wandb
 from config import get_config
 from grain_detection.dataset_grain import GrainDataset
@@ -8,6 +10,7 @@ from setr import SETR
 from train import train
 from validate import validate
 from sklearn.model_selection import train_test_split
+import importlib
 
 
 def main():
@@ -41,63 +44,86 @@ def main():
         wandb.config.validation_images = validation_images
         wandb.config.test_images = test_images
 
-    if use_wandb:
-        train_loader = DataLoader(GrainDataset(
+    if not config["felix_data"]:
+        if use_wandb:
+            train_loader = DataLoader(GrainDataset(
+                config["train_dataset"],
+                config["num_data"],
+                in_channels=config["in_channels"],
+                image_idxs=train_images,
+            ), batch_size=wandb.config.batch_size,
+             num_workers=config.get("num_workers", 1),
+             persistent_workers=True,
+             pin_memory=True)
+        else:
+            train_loader = DataLoader(GrainDataset(
+                config["train_dataset"],
+                config["num_data"],
+                in_channels=config["in_channels"],
+                image_idxs=train_images,
+            ), batch_size=config.get("batch_size", 4),
+             num_workers=config.get("num_workers", 1),
+             persistent_workers=True,
+             pin_memory=True)
+        validation_loader = DataLoader(GrainDataset(
             config["train_dataset"],
             config["num_data"],
             in_channels=config["in_channels"],
-            image_idxs=train_images,
-        ), batch_size=wandb.config.batch_size,
-           num_workers=config.get("num_workers", 1),
-           persistent_workers=True,
-           pin_memory=True)
+            image_idxs=validation_images,
+            train=False
+        ), batch_size=1,
+         num_workers=config.get("num_workers", 1),
+         persistent_workers=True,
+         pin_memory=True)
 
     else:
 
-        train_loader = DataLoader(GrainDataset(
-            config["train_dataset"],
-            config["num_data"],
-            in_channels=config["in_channels"],
-            image_idxs=train_images,
-        ), batch_size=config.get("batch_size", 4),
-           num_workers=config.get("num_workers", 1),
-           persistent_workers=True,
-           pin_memory=True)
+        graindetection_felix = importlib.import_module(
+            "lib.grain-detection.graindetection.dataprocessor")
+        GrainDatasetFelix = graindetection_felix.GrainDataset
+        if use_wandb:
+            train_loader = DataLoader(GrainDatasetFelix(
+                "/home/kons/02_processed/train/features",
+                "/home/kons/02_processed/train/target"
+            ), batch_size=wandb.config.batch_size,
+             num_workers=config.get("num_workers", 1),
+             persistent_workers=True,
+             pin_memory=True)
+        else:
+            train_loader = DataLoader(GrainDatasetFelix(
+                "/home/kons/02_processed/train/features",
+                "/home/kons/02_processed/train/target"
+            ), batch_size=config.get("batch_size", 4),
+             num_workers=config.get("num_workers", 1),
+             persistent_workers=True,
+             pin_memory=True)
+        validation_loader = DataLoader(GrainDatasetFelix(
+            "/home/kons/02_processed/test/features",
+            "/home/kons/02_processed/test/target"
+        ), batch_size=1,
+         num_workers=config.get("num_workers", 1),
+         persistent_workers=True,
+         pin_memory=True)
 
-    validation_loader = DataLoader(GrainDataset(
-        config["train_dataset"],
-        config["num_data"],
-        in_channels=config["in_channels"],
-        image_idxs=validation_images,
-        train=False
-    ), batch_size=1,
-       num_workers=config.get("num_workers", 1),
-       persistent_workers=True,
-       pin_memory=True)
+    if use_wandb and wandb.config.encoder_type == "vit_b":
 
-    if config["encoder_type"] or wandb.encoder_type == "vit_b":
+        wandb.config.update(
+            {
+                "embedding_size": 768,
+                "n_encoder_heads": 12,
+                "n_encoder_layers": 12,
+                "dim_mlp": 3072
+            }, allow_val_change=True)
 
-        wandb.config.embedding_size = 768
-        wandb.config.n_encoder_heads = 12
-        wandb.config.n_encoder_layers = 12
-        wandb.config.dim_mlp = 3072
+    elif use_wandb and config["encoder_type"] == "vit_l":
 
-        config["embedding_size"] = 768
-        config["n_encoder_heads"] = 12
-        config["n_encoder_layers"] = 12
-        config["dim_mlp"] = 3072
-
-    elif config["encoder_type"] or wandb.encoder_type == "vit_l":
-
-        wandb.config.embedding_size = 1024
-        wandb.config.n_encoder_heads = 16
-        wandb.config.n_encoder_layers = 24
-        wandb.config.dim_mlp = 4096
-
-        config["embedding_size"] = 1024
-        config["n_encoder_heads"] = 16
-        config["n_encoder_layers"] = 24
-        config["dim_mlp"] = 4096
+        wandb.config.update(
+            {
+                "embedding_size": 1024,
+                "n_encoder_heads": 16,
+                "n_encoder_layers": 24,
+                "dim_mlp": 4096
+            }, allow_val_change=True)
 
     if use_wandb:
 
@@ -140,13 +166,27 @@ def main():
     if use_wandb:
         wandb.watch(model, log="all")
 
-    for epoch in range(1, config["epochs"] + 1):
+    best = {"epoch": 0, "iou": 0}
+    for epoch in tqdm(range(1, config["epochs"] + 1)):
         train(
             model, device, train_loader, optimizer, epoch, loss,
-            use_wandb=use_wandb)
+            felix_data=config["felix_data"], use_wandb=use_wandb)
         if epoch % config["evaluate_every"] == 0:
-            validate(
-                model, device, validation_loader, epoch, use_wandb=use_wandb)
+            iou = validate(
+                    model, device, validation_loader, epoch,
+                    felix_data=config["felix_data"], use_wandb=use_wandb)
+            if iou > best["iou"]:
+                best["iou"] = iou
+                best["epoch"] = epoch
+                torch.save({
+                        'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'iou': iou,
+                        'loss': loss}, f"grain_detection/best.pth")
+                if config.get("use_wandb"):
+                    wandb.save("grain_detection/best.pth")
+            wandb.log({"best_epoch": best["epoch"], "best_iou": best["iou"]})
 
 
 if __name__ == '__main__':
