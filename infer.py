@@ -9,11 +9,11 @@ from PIL import Image
 
 from transunet import TransUNet
 
-run_path = "seko97/grain_detection/n1tnovoc"
+run_path = "seko97/grain_detection/tnbzkyt5"
 felix_data = True
 num_workers = 32
 save_patches = True
-data_type = "NPY"
+data_type = "PNG"
 
 wandb_api = wandb.Api()
 run = wandb_api.run(run_path)
@@ -40,6 +40,7 @@ model = torch.nn.parallel.DataParallel(model)
 model.load_state_dict(checkpoint["model_state_dict"])
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
+model.eval()
 
 save_folder = f"grain_detection/samples/{run_name}/{checkpoint['epoch']}"
 
@@ -55,26 +56,27 @@ if felix_data:
          persistent_workers=True,
          pin_memory=True)
 
-    for i, batch in enumerate(tqdm(validation_loader)):
+    with torch.no_grad():
+        for i, batch in enumerate(tqdm(validation_loader)):
 
-        if save_patches:
+            if save_patches:
 
-            p1 = 4
-            p2 = 42
-            output = model(batch["F"].to(device))
-            prediction = (output[0, 0])
-            prediction = torch.round(torch.sigmoid(prediction))
-            prediction = prediction.cpu().detach().numpy()
-            if data_type == "PNG":
-                prediction = (prediction * 255).astype(np.uint8)
-                image = Image.fromarray(prediction)
-                if not os.path.exists(f"{save_folder}/png"):
-                    os.makedirs(f"{save_folder}/png")
-                image.save(
-                    f"{save_folder}/png/pred_{str(i).zfill(3)}.png")
-            elif data_type == "NPY":
-                if not os.path.exists(f"{save_folder}/npy"):
-                    os.makedirs(f"{save_folder}/npy")
-                np.save(
-                    f"{save_folder}/npy/pred_{str(i).zfill(3)}.npy",
-                    prediction)
+                p1 = 4
+                p2 = 42
+                output = model(batch["F"].to(device))
+                prediction = (output[0, 0])
+                prediction = torch.round(torch.sigmoid(prediction))
+                prediction = prediction.cpu().detach().numpy()
+                if data_type == "PNG":
+                    prediction = (prediction * 255).astype(np.uint8)
+                    image = Image.fromarray(prediction)
+                    if not os.path.exists(f"{save_folder}/png"):
+                        os.makedirs(f"{save_folder}/png")
+                    image.save(
+                        f"{save_folder}/png/pred_{str(i).zfill(3)}.png")
+                elif data_type == "NPY":
+                    if not os.path.exists(f"{save_folder}/npy"):
+                        os.makedirs(f"{save_folder}/npy")
+                    np.save(
+                        f"{save_folder}/npy/pred_{str(i).zfill(3)}.npy",
+                        prediction)

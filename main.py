@@ -105,6 +105,22 @@ def main():
          persistent_workers=True,
          pin_memory=True)
 
+    # load Checkpoint
+    if config.get("checkpoint"):
+        wandb_api = wandb.Api()
+        run = wandb_api.run(config['checkpoint'])
+        run_name = run.name
+        model_folder = f"grain_detection/models/{run.name}"
+        print(f"restoring {model_folder}")
+        checkpoint = wandb.restore(
+            "grain_detection/best.pth",
+            run_path=config["checkpoint"],
+            root=model_folder)
+        print("restored")
+        checkpoint = torch.load(checkpoint.name)
+    else:
+        checkpoint = None
+
     if use_wandb and wandb.config.encoder_type == "vit_b":
 
         wandb.config.update(
@@ -147,6 +163,8 @@ def main():
 
     if torch.cuda.device_count() > 1:
         model = torch.nn.parallel.DataParallel(model)
+    if checkpoint:
+        model.load_state_dict(checkpoint["model_state_dict"])
 
     model.to(device)
 
@@ -160,6 +178,8 @@ def main():
         optimizer = getattr(torch.optim, config.get("optimizer", "Adam"))(
             model.parameters(), lr=config["learning_rate"]
         )
+    if checkpoint:
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     loss = getattr(torch.nn, config.get("loss", "CrossEntropyLoss"))()
 
@@ -167,7 +187,12 @@ def main():
         wandb.watch(model, log="all")
 
     best = {"epoch": 0, "iou": 0}
-    for epoch in tqdm(range(1, config["epochs"] + 1)):
+    start_epoch = 1
+    if checkpoint:
+        best["epoch"] = checkpoint["epoch"]
+        start_epoch = checkpoint["epoch"] + 1
+    del checkpoint
+    for epoch in tqdm(range(start_epoch, config["epochs"] + 1)):
         train(
             model, device, train_loader, optimizer, epoch, loss,
             felix_data=config["felix_data"], use_wandb=use_wandb)

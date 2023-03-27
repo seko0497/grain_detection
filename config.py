@@ -9,6 +9,8 @@ def get_config():
     train_dataset = "data/grains"
     felix_data = True
 
+    checkpoint = "seko97/grain_detection/md5hicsb"
+
     # Model config
 
     num_patches = (16, 16)
@@ -27,11 +29,11 @@ def get_config():
     # Train config
 
     num_data = 5000
-    batch_size = 16
+    batch_size = 32
     optimizer = "Adam"
     loss = "BCEWithLogitsLoss"
     learning_rate = 0.00001
-    epochs = 150
+    epochs = 300
     num_workers = 32
 
     # Eval config
@@ -65,7 +67,8 @@ def get_config():
         "learning_rate": learning_rate,
         "evaluate_every": evaluate_every,
         "use_wandb": use_wandb,
-        "felix_data": felix_data
+        "felix_data": felix_data,
+        "checkpoint": checkpoint
     }
 
     return config
