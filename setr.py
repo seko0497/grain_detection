@@ -67,8 +67,6 @@ class SETR(nn.Module):
 
         self.sigmoid = nn.Sigmoid()
 
-        self.load_pretrained()
-
     def forward(self, x):
 
         x = self.image_seq(x)

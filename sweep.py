@@ -14,6 +14,9 @@ parameters_dict = {
     },
     "learning_rate": {
         "values": [0.00001, 0.0001]
+    },
+    "model": {
+        "values": ["SETR_PUP", "SETR_MLA"]
     }
 }
 
