@@ -30,8 +30,8 @@ setr_defaults = {
 num_patches = (16, 16)
 image_size = (256, 256)
 in_channels = ["intensity", "depth"]
-model = "SETR_PUP"
-encoder_type = "vit_l"
+model = "TransUNet"
+encoder_type = "vit_b"
 out_channels = 1
 
 # Train config
@@ -40,9 +40,14 @@ num_data = 5000
 batch_size = 32
 optimizer = "Adam"
 loss = "BCEWithLogitsLoss"
-learning_rate = 0.00001
+learning_rate = 0.0001
 epochs = 200
 num_workers = 32
+
+# Combining
+
+frac_original = 0.1
+path_synthetic = "grain_generation/samples/youthful-paper-47/epoch510_steps100"
 
 # Eval config
 
@@ -68,6 +73,8 @@ config = {
     "random_seed": random_seed,
     "epochs": epochs,
     "num_workers": num_workers,
+    "frac_original": frac_original,
+    "path_synthetic": path_synthetic,
     "learning_rate": learning_rate,
     "evaluate_every": evaluate_every,
     "use_wandb": use_wandb,

@@ -1,10 +1,11 @@
+import os
 from matplotlib import pyplot as plt
 import torch
 from tqdm import tqdm
 import wandb
 from config import config as config_dict
 from grain_detection.dataset_grain import GrainDataset
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from grain_detection.transunet import TransUNet
 from setr import SETR
 from train import train
@@ -66,13 +67,16 @@ def main():
             "lib.grain-detection.graindetection.dataprocessor")
         GrainDatasetFelix = graindetection_felix.GrainDataset
 
-        train_loader = DataLoader(GrainDatasetFelix(
+        train_dataset = GrainDatasetFelix(
             "/home/kons/02_processed/train/features",
-            "/home/kons/02_processed/train/target"
-        ), batch_size=config.get("batch_size"),
+            "/home/kons/02_processed/train/target")
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=config.get("batch_size"),
             num_workers=config.get("num_workers"),
             persistent_workers=True,
             pin_memory=True)
+
         validation_loader = DataLoader(GrainDatasetFelix(
             "/home/kons/02_processed/test/features",
             "/home/kons/02_processed/test/target"
@@ -80,6 +84,31 @@ def main():
          num_workers=config.get("num_workers"),
          persistent_workers=True,
          pin_memory=True)
+
+    # concat original and synthetic dataset
+    if config.get("frac_original") < 1.0:
+        num_original = len(
+            os.listdir("/home/kons/02_processed/train/features/1"))
+        num_synthetic = num_original * (
+            (1.0 - config.get("frac_original")) / config.get("frac_original"))
+        synthetic_dataset = GrainDataset(
+            config.get("path_synthetic"),
+            in_channels=config.get("in_channels"),
+            image_idxs=list(range(int(num_synthetic))),
+            keys=["T", "F"],
+            one_hot=True)
+
+        combined_dataset = ConcatDataset(
+            (train_dataset, synthetic_dataset))
+        combined_dataloader = DataLoader(
+            combined_dataset,
+            batch_size=config.get("batch_size"),
+            num_workers=config.get("num_workers"),
+            persistent_workers=True,
+            pin_memory=True,
+            shuffle=True)
+
+        train_loader = combined_dataloader
 
     # load Checkpoint
     if config.get("checkpoint"):
