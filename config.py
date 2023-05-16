@@ -47,7 +47,10 @@ num_workers = 32
 # Combining
 
 frac_original = 0.1
-path_synthetic = "grain_generation/samples/youthful-paper-47/epoch510_steps100"
+path_synthetic = (
+    "grain_generation/samples/"
+    "daily-night-25_sandy-galaxy-23/epoch175_epoch660steps100_100"
+)
 
 # Eval config
 
