@@ -55,8 +55,6 @@ class GrainDataset(Dataset):
 # grain_dataloader = DataLoader(grain_dataset, batch_size=1)
 # for batch in grain_dataloader:
 #     __, ax = plt.subplots(3)
-#     print(batch["O"].shape)
-#     quit()
 #     ax[0].imshow(batch["I"][0][0], cmap="gray")
 #     ax[1].imshow(batch["I"][0][1], cmap="gray")
 #     ax[2].imshow(batch["O"][0][0], cmap="gray")
