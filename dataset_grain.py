@@ -1,10 +1,7 @@
 import torch
-from torch.utils.data import Dataset, DataLoader
-import matplotlib.pyplot as plt
+from torch.utils.data import Dataset
 from torchvision import transforms
 from PIL import Image
-import numpy as np
-import einops
 
 
 class GrainDataset(Dataset):

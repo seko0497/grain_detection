@@ -1,7 +1,3 @@
-from torch.utils.data import Dataset, DataLoader
-from grain_detection.dataset_grain import GrainDataset
-from setr import SETR
-import matplotlib.pyplot as plt
 import wandb
 from tqdm import tqdm
 import torch
@@ -9,7 +5,7 @@ import torch
 
 def train(
         model, device, data_loader, optimizer,
-        epoch, loss_fn, felix_data=False, use_wandb=False):
+        epoch, loss_fn, use_wandb=False):
 
     model.train()
 
@@ -17,11 +13,7 @@ def train(
 
     for batch_idx, batch in enumerate(tqdm(data_loader)):
 
-        if not felix_data:
-            inp, trg = batch["I"].to(device), batch["O"].to(device)
-        else:
-            inp, trg = batch["F"].to(device), batch["T"].to(device)
-            trg = torch.argmax(trg, dim=1, keepdim=True).float()
+        inp, trg = batch["I"].to(device), batch["O"].to(device)
 
         # Forward pass
         optimizer.zero_grad()
