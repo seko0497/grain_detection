@@ -2,8 +2,7 @@ from main import main
 import wandb
 
 sweep_config = {
-    "method": "grid",
-}
+    "method": "grid"}
 
 parameters_dict = {
     "batch_size": {
